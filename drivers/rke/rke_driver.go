@@ -483,27 +483,41 @@ func clusterUp(
 }
 
 func (d *Driver) ETCDSave(ctx context.Context, clusterInfo *types.ClusterInfo, opts *types.DriverOptions, snapshotName string) error {
-	rkeConfig, err := util.ConvertToRkeConfig(clusterInfo.Metadata["Config"])
-	stateDir, err := d.restore(clusterInfo)
+	rkeConfig, stateDir, err := d.getConfigAndStateDir(clusterInfo, opts)
 	if err != nil {
 		return err
 	}
 	defer d.cleanup(stateDir)
 
-	dialers, externalFlags := d.getFlags(rkeConfig, stateDir)
+	dialers, externalFlags := d.getFlags(*rkeConfig, stateDir)
 
-	return cmd.SnapshotSaveEtcdHosts(ctx, &rkeConfig, dialers, externalFlags, snapshotName)
+	return cmd.SnapshotSaveEtcdHosts(ctx, rkeConfig, dialers, externalFlags, snapshotName)
 }
 
 func (d *Driver) ETCDRestore(ctx context.Context, clusterInfo *types.ClusterInfo, opts *types.DriverOptions, snapshotName string) error {
-	rkeConfig, err := util.ConvertToRkeConfig(clusterInfo.Metadata["Config"])
-	stateDir, err := d.restore(clusterInfo)
+	rkeConfig, stateDir, err := d.getConfigAndStateDir(clusterInfo, opts)
 	if err != nil {
 		return err
 	}
 	defer d.cleanup(stateDir)
 
-	dialers, externalFlags := d.getFlags(rkeConfig, stateDir)
+	dialers, externalFlags := d.getFlags(*rkeConfig, stateDir)
 
-	return cmd.RestoreEtcdSnapshot(ctx, &rkeConfig, dialers, externalFlags, snapshotName)
+	return cmd.RestoreEtcdSnapshot(ctx, rkeConfig, dialers, externalFlags, snapshotName)
+}
+
+func (d *Driver) getConfigAndStateDir(clusterInfo *types.ClusterInfo, opts *types.DriverOptions) (*v3.RancherKubernetesEngineConfig, string, error) {
+	yaml, err := getYAML(opts)
+	if err != nil {
+		return nil, "", err
+	}
+	rkeConfig, err := util.ConvertToRkeConfig(yaml)
+	if err != nil {
+		return nil, "", err
+	}
+	stateDir, err := d.restore(clusterInfo)
+	if err != nil {
+		return nil, "", err
+	}
+	return &rkeConfig, stateDir, nil
 }
